@@ -1,0 +1,457 @@
+---
+title: "Data_analysis_in_R_PhD_class_JanosSalamon"
+author: "Janos Salamon"
+date: "June 14, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Executive summary 
+
+The present study investigates the connection between burnout, work satisfaction and
+different kind of work motivation factors. Multidimensional Work Motivation Scale (MWMS; Gagné et al., 2015), 
+Satisfaction with Work Scale (SWWS; Fouquereau & Rioux, 2002) and 
+Shirom-Melamed Burnout Questionnaire (SMBQ; Shirom & Melamed, 2006) were used in the study. 
+The study relies on a sample of 721 Hungarian working adults (532 female, 73.8%), who were aged 
+between 19 and 71 (M =  37.4; SD = 11.6). These participants reported their 
+highest level of education as primary (1.4%), secondary (34.1%) and higher (64.5%). 
+The majority of the sample works more than 15 years ago (43.3%), 30% works between 4 and 15 years ago, while 
+24.7% works less than 4 years ago. There are participants (7.2%) who are self-employed, 
+the majority works at SMEs (55.1%), and 37.7% works at large enterprises. 
+The aim of the study was first to assess each constructs factor structure 
+using confirmatory factor analysis (CFA), then investigate the connection 
+between these factors, using structural equation modeling (SEM). 
+As fit indeces did not show acceptable results for the factors of Multidimensional Work Motivation Scale (MWMS), 
+it was necessary to continue analysis and explore factor structure by using Principal Components Analysis (PCA).
+PCA of MWMS suggested a 5-factor model, while there was important to drop out 2 items for a better factor structure and acceptable fit indices. Fit indices of the final model are satisfactory.
+
+# Preparation
+Loading packages
+```{r}
+library(tidyverse)
+library(lavaan)
+library(haven)
+```
+
+```{r, include=FALSE}
+# set working direcotry and import data from SPSS (.sav) file
+setwd("C:/Users/salam/Desktop/Tanulas/R kurzus")
+work_data <- read_sav("munka_master1.sav")
+```
+
+
+## 1. Confirmatory Factor Analysis 
+Confirmatory factor analysis using the lavaan package
+
+# model for burnout
+```{r}
+burnout <- '
+  Physical_B =~ burn_1 + burn_3 + burn_5 + burn_8 + burn_10 + burn_12
+  Cognitive_B =~ burn_2 + burn_6 + burn_9 + burn_11 + burn_13
+  Emotional_B =~ burn_4 + burn_7 + burn_14'
+fit_burnout <- cfa(burnout, data = work_data, estimator = 'MLR')
+summary(fit_burnout, fit.measures = TRUE, standardized = TRUE)
+```
+Fit indices highlighted that the hypothesized representation of the constructs 
+is satisfactory (CFI = .924, TLI = .907, RMSEA = .082 [90% CI = .075-.090]).
+
+
+# model for work motivation
+```{r}
+work_motiv <- '
+  Amotiv =~ mwms_4 + mwms_10 + mwms_16
+  Ext_Mat =~ mwms_6 + mwms_12 + mwms_18
+  Ext_Soc =~ mwms_1 + mwms_7 + mwms_13
+  Introj =~ mwms_2 + mwms_8 + mwms_14 + mwms_19
+  Ident =~ mwms_5 + mwms_11 + mwms_17
+  Intrin =~ mwms_3 + mwms_9 + mwms_15'
+fit_work_motiv <- cfa(work_motiv, data = work_data, estimator = 'MLR')
+summary(fit_work_motiv, fit.measures = TRUE, standardized = TRUE)
+```
+Fit indices show that the hypothesized representation of the constructs 
+is unsatisfactory (CFI = .907, TLI = .884, RMSEA = .069 [90% CI = .064-.074]).
+
+
+# model for satisfaction
+```{r}
+work_satisf <- ' work_satisf =~ swws_1 + swws_2 + swws_3 + swws_4 + swws_5
+  swws_2 ~~ swws_5'
+fit_work_satisf <- cfa(work_satisf, data = work_data, estimator = 'MLR')
+summary(fit_work_satisf, fit.measures = TRUE, standardized = TRUE, modindices = TRUE)
+```
+Fit indices show that the hypothesized representation of the constructs 
+is good (CFI = .998, TLI = .996, RMSEA = .029 [90% CI = .000-.065]), 
+taking into account the simlicity of the model, and the range of the confidence inteval.
+
+Modification Indices suggested error covariances between the following items: swws_2 and swws_5,
+thus these are corrected in the final model.
+
+
+## SEM model
+```{r}
+my_model <- ' 
+  # measurement model
+    burnout =~ Physical_B + Emotional_B + Cognitive_B
+                  Physical_B =~ burn_1 + burn_2 + burn_3 + burn_4 + burn_5 + burn_6
+                  Emotional_B =~ burn_7 + burn_8 + burn_9 + burn_10 + burn_11
+                  Cognitive_B =~ burn_12 + burn_13 + burn_14
+
+    Amotiv =~ mwms_4 + mwms_10 + mwms_16
+    Ext_Mat =~ mwms_6 + mwms_12 + mwms_18
+    Ext_Soc =~ mwms_1 + mwms_7 + mwms_13
+    Introj =~ mwms_2 + mwms_8 + mwms_14 + mwms_19
+    Ident =~ mwms_5 + mwms_11 + mwms_17
+    Intrin =~ mwms_3 + mwms_9 + mwms_15
+    
+    work_satisf =~ swws_1 + swws_2 + swws_3 + swws_4 + swws_5
+  
+# regressions
+    burnout ~ Amotiv + Ext_Mat + Ext_Soc + Introj + Ident + Intrin
+    work_satisf ~ Amotiv + Ext_Mat + Ext_Soc + Introj + Ident + Intrin
+    burnout ~~ work_satisf'
+```
+
+# model fit and summary of model fit
+```{r}
+my_model_fit <- cfa(my_model, data = work_data, estimator = 'MLR')
+```
+Output shows warning message: "some estimated lv variances are negative", 
+which was expected based on previous results.
+
+```{r}
+summary(my_model_fit, fit.measures=TRUE, standardized = TRUE)
+```
+Fit indices highlighted that the hypothesized representation of the constructs 
+is unsatisfactory (CFI = .858, TLI = .843, RMSEA = .065 [90% CI = .062-.068]).
+These results were expected based on the fit indices 
+of some elements of the model (showed in previous results).
+
+
+# Plotting the models with semPlot
+```{r}
+library(semPlot)
+```
+
+# Seeing the clean model structure
+```{r}
+semPaths(my_model_fit)
+```
+
+# Getting standardized estimates
+```{r}
+semPaths(my_model_fit, "std")
+```
+
+The model shows the previously indicated negative correlations between some variables.
+Based on the unsatisfactory fit indices of previously hypothesized representation of the constructs 
+it is suggested to continue the analysis with exploratory factor analysis. 
+
+
+## 2. Dimension reduction (Principal Components Analysis)
+
+PCA for exploring the factor sturcture of motivation, using the Multidimensional Work Motivation Scale, 
+because fit indices in CFA were unsatisfactory in the original factor structure.
+
+# Loading packages
+```{r}
+library(corpcor) 
+library(GPArotation)
+library(psych)
+library(devtools)
+library(DSUR.noof)
+```
+
+```{r}
+motiv <- 
+  work_data %>%
+  as_tibble() %>%
+  select(mwms_1:mwms_19)
+```
+
+
+# Preliminary analysis for EFA
+```{r}
+cortest.bartlett(motiv, n = 721)
+```
+Bartlett's test is significant, x2(171) = 6,720, p < .001), so factor analysis is appropriate.
+
+```{r}
+kmo(motiv)
+```
+KMO statistics show that overall KMO is 0.86, which means: 
+"The KMO test yields a degree of common variance meritorious."
+KMO values for Individual variables also acceptable (all are > .5). 
+
+```{r}
+det(cor(motiv))
+```
+Determinant of the correlation matrix (8.046915e-05) is greater than 0.00001, 
+thus determinant does not seem problematic either.
+
+# Finding the optimal number of factors
+```{r}
+pc1 <- principal(motiv, nfactors = 19, rotate = "none")
+pc1
+
+plot(pc1$values, type = "b")
+```
+
+Scree plot shows an inflexion after 6 factors, while 
+eigenvalues, following Jolliffe's criterion also supports the six-component solution.
+Using promax rotation, because it is theoreticaly grounded that 
+motivational factors might correlate.
+
+```{r}
+pc2 <- principal(motiv, nfactors = 6, rotate = "promax")
+pc2
+print.psych(pc2, cut = 0.3, sort = TRUE)
+```
+6-factor model's fit shows upon off diagonal values = 0.97, which means a good fit.
+Factor structure does not clear, constructs are also mixed in a not meaningful way.
+
+# Trying to check a 5-factor model, based on Keiser's criterion.
+```{r}
+pc3 <- principal(motiv, nfactors = 5, rotate = "promax")
+pc3
+print.psych(pc3, cut = 0.3, sort = TRUE)
+```
+5-factor model's fit also shows upon off diagonal values = 0.97, which means a good fit.
+Pattern matrix shows high cross-loadings of item 14.
+
+# Deleting item 14, then re-run analysis.
+```{r}
+library(tidyverse)
+
+motiv2 <- 
+  work_data %>%
+  as_tibble() %>%
+  select(mwms_1, mwms_2, mwms_3, mwms_4, mwms_5, mwms_6, mwms_7,
+         mwms_8, mwms_9, mwms_10, mwms_11, mwms_12, mwms_13, mwms_15,
+         mwms_16, mwms_17, mwms_18, mwms_19)
+
+
+pc4 <- principal(motiv2, nfactors = 5, rotate = "promax")
+pc4
+print.psych(pc4, cut = 0.3, sort = TRUE)
+```
+Pattern matrix shows high cross-loadings of item 13.
+
+# Deleting item 13, then re-run analysis.
+```{r}
+motiv3 <- 
+  work_data %>%
+  as_tibble() %>%
+  select(mwms_1, mwms_2, mwms_3, mwms_4, mwms_5, mwms_6, mwms_7,
+         mwms_8, mwms_9, mwms_10, mwms_11, mwms_12, mwms_15,
+         mwms_16, mwms_17, mwms_18, mwms_19)
+
+pc5 <- principal(motiv3, nfactors = 5, rotate = "promax")
+pc5
+print.psych(pc5, cut = 0.3, sort = TRUE)
+```
+Pattern matrix shows very clear loadings. Factors are theoretically appropriate.
+
+
+# Variables are loading to the following factors. Each show a meaningful factor:  
+  factor 1: Intinsic motivation (Intrin): mwms_3 + mwms_9 + mwms_15
+  
+  factor 2: Autonomous extrinsic (Aut_Ext): mwms_5 + mwms_11 + mwms_17 + mwms_19
+  
+  factor 3: Amotivation (Amotiv): mwms_4 + mwms_10 + mwms_16
+  
+  fcator 4: Controlled extrinsic (Cont_Ext): mwms_1 + mwms_2 + mwms_7 + mwms_8
+  
+  factor 5: External material (Ext_Mat): mwms_6 + mwms_12 + mwms_18
+
+
+
+## 3. CFA model for new work motivation factors
+```{r}
+library(lavaan)
+
+work_motiv <- '
+Intrin =~ mwms_3 + mwms_9 + mwms_15
+Aut_Ext =~ mwms_5 + mwms_11 + mwms_17 + mwms_19
+Amotiv =~ mwms_4 + mwms_10 + mwms_16
+Cont_Ext =~ mwms_1 + mwms_2 + mwms_7 + mwms_8
+Ext_Mat =~ mwms_6 + mwms_12 + mwms_18'
+
+fit_work_motiv <- cfa(work_motiv, data = work_data, estimator = 'MLR')
+summary(fit_work_motiv, fit.measures = TRUE, standardized = TRUE)
+```
+
+Fit indices of the hypothesized representation of the constructs 
+are satisfactory now (CFI = .941, TLI = .927, RMSEA = .057 [90% CI = .051-.063]).
+
+
+
+## 4. Normality
+Identifing violations of normality
+
+# Loading packages
+```{r}
+library(dplyr)
+library(MVN)
+```
+
+# variable calculation for work motivation factors
+```{r}
+motiv_variables <-
+  work_data %>%
+  mutate(Intrin_avg = mean(mwms_3, mwms_9, mwms_15, trim = 0, na.rm=TRUE),
+         Aut_Ext_avg = mean(mwms_5, mwms_11, mwms_17, trim = 0, mwms_19, na.rm=TRUE),
+         Amotiv_avg = mean(mwms_4, mwms_10, mwms_16, trim = 0, na.rm=TRUE),
+         Cont_Ext_avg = mean(mwms_1, mwms_2, mwms_7, trim = 0, mwms_8, na.rm=TRUE),
+         Ext_Mat_avg = mean(mwms_6, mwms_12, mwms_18, trim = 0, na.rm=TRUE))
+```
+
+# assessment of univariate and multivariate normality with Mardia's test - work motivation
+```{r}
+avg_only_motiv <- motiv_variables %>%
+  select(mwms_1, mwms_2, mwms_3, mwms_4, mwms_5, mwms_6, mwms_7, mwms_8, mwms_9, 
+         mwms_10, mwms_11, mwms_12, mwms_15, mwms_16, mwms_17, mwms_18, mwms_19)
+
+mvn(avg_only_motiv)
+```
+
+# Filtering missing values from burnout data
+```{r}
+work_data2 <- work_data %>%
+  filter(!is.na(burn_1), 
+         !is.na(burn_2),
+         !is.na(burn_3),
+         !is.na(burn_4),
+         !is.na(burn_5),
+         !is.na(burn_6),
+         !is.na(burn_7),
+         !is.na(burn_8),
+         !is.na(burn_9),
+         !is.na(burn_10),
+         !is.na(burn_11),
+         !is.na(burn_12),
+         !is.na(burn_13),
+         !is.na(burn_14))
+```
+
+# variable calculation for burnout factors
+```{r}
+burnout_variables <-
+  work_data2 %>%
+  mutate(Physical_B_avg = mean(burn_1, burn_3, burn_5, burn_8, burn_10, burn_12, trim = 0, na.rm=TRUE),
+         Cognitive_B_avg = mean(burn_2, burn_6, burn_9, burn_11, burn_13, trim = 0, na.rm=TRUE),
+         Emotional_B_avg = mean(burn_4, burn_7, burn_14, trim = 0, na.rm=TRUE))
+```
+
+# assessment of univariate and multivariate normality with Mardia's test - burnout
+```{r}
+avg_only_burn <- burnout_variables %>%
+  select(burn_1, burn_2, burn_3, burn_4, burn_5, burn_6, burn_7, burn_8, burn_9, burn_10, 
+         burn_11, burn_12, burn_13, burn_14)
+
+mvn(avg_only_burn)
+```
+
+# Filtering missing values from satisfaction data
+```{r}
+work_data3 <- work_data %>%
+  filter(!is.na(swws_1), 
+         !is.na(swws_2),
+         !is.na(swws_3),
+         !is.na(swws_4),
+         !is.na(swws_5))
+```
+
+# variable calculation for work satisfaction factor
+```{r}
+sat_variables <-
+  work_data3 %>%
+  mutate(satis_avg = mean(swws_1, swws_2, swws_3, swws_4, swws_5, trim = 0, na.rm=T))
+```
+
+# assessment of univariate and multivariate normality with Mardia's test - work satisfation
+```{r}
+avg_only_sat <- sat_variables %>%
+  select(swws_1:swws_5)
+
+mvn(avg_only_sat)
+```
+
+Results indicate the violance of normality.
+
+
+## 5. Final SEM MODEL
+Using structural equation modelling for modeling the connection between 
+burnout, work motivation and work satisfaction factors with satisfactory fit indices.
+
+# Loading package
+```{r}
+library(lavaan)
+```
+
+# Final model
+```{r}
+my_model2 <- ' 
+  # measurement model
+burnout =~ Physical_B + Emotional_B + Cognitive_B
+Physical_B =~ burn_1 + burn_3 + burn_5 + burn_8 + burn_10 + burn_12
+Cognitive_B =~ burn_2 + burn_6 + burn_9 + burn_11 + burn_13
+Emotional_B =~ burn_4 + burn_7 + burn_14
+
+Intrin =~ mwms_3 + mwms_9 + mwms_15
+Aut_Ext =~ mwms_5 + mwms_11 + mwms_17 + mwms_19
+Amotiv =~ mwms_4 + mwms_10 + mwms_16
+Cont_Ext =~ mwms_1 + mwms_2 + mwms_7 + mwms_8
+Ext_Mat =~ mwms_6 + mwms_12 + mwms_18
+
+work_satisf =~ swws_1 + swws_2 + swws_3 + swws_4 + swws_5
+            swws_2 ~~ swws_5
+
+# regressions
+burnout ~ Amotiv + Ext_Mat + Cont_Ext + Aut_Ext + Intrin
+work_satisf ~ Amotiv + Ext_Mat + Cont_Ext + Aut_Ext + Intrin
+burnout ~~ work_satisf'
+```
+
+
+# model fit and summary of model fit
+```{r}
+my_model_fit2 <- cfa(my_model2, data = work_data, estimator = 'MLR')
+summary(my_model_fit2, fit.measures=TRUE, standardized = TRUE)
+```
+
+Fit indices highlighted that the hypothesized representation of the constructs is satisfactory.
+
+
+# Plotting the models with semPlot
+```{r}
+library(semPlot)
+```
+
+# Seeing the clean model structure
+```{r}
+semPaths(my_model_fit2)
+```
+
+# Getting standardized estimates
+```{r}
+semPaths(my_model_fit2, "std")
+```
+
+
+## 6. Results of final SEM Model
+
+In the model the fit indices are acceptable (CFI = .909, TLI = .900, RMSEA = .054 [90% CI = .051-.057])
+
+Both amotivation (beta = .27, p = .001) and controlled extrinsic motivation (beta = .215, p = .007) were 
+related positively but weakly to burnout. Intrinsic motivation (beta = -.317, p < .001) has negative relation to
+burnout. However, neither external material based motivaton (beta = -.012, p = .855), 
+nor autonomous extrinsic motivation (beta = -.119, p = .143) related significantly to burnout.
+
+Intrinsic motivation is positively related to work satisfaction (beta = .529, p < .001), while
+amotivation has negative relation to that (beta = -.279, p < .001). 
+External material based motivaton (beta = .103, p = .068), controlled extrinsic motivation (beta = .000, p = .998),
+and autonomous extrinsic motivation (beta = .012, p = .831) does not have any relation to work satisfaction.
+
